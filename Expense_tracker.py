@@ -1,89 +1,143 @@
 import os
-import csv
-import datetime
+import json
 import matplotlib.pyplot as plt
+from datetime import datetime
 
-# Constants for menu options
-MENU_OPTIONS = {
-    1: "Add Expense",
-    2: "View Expenses",
-    3: "View Statistics",
-    4: "Generate Report",
-    5: "Exit",
-}
+# Define the file where expenses will be stored
+EXPENSES_FILE = "expenses.json"
 
-# Constants for CSV file headers
-CSV_HEADERS = ["Date", "Amount", "Category", "Description"]
+# Define the expense categories
+DEFAULT_EXPENSE_CATEGORIES = ["Food", "Transportation", "Entertainment", "Other"]
 
-# Function to load expenses from CSV
+class Expense:
+    def __init__(self, date, amount, category, description):
+        self.date = date
+        self.amount = amount
+        self.category = category
+        self.description = description
+
 def load_expenses():
-    expenses = []
-    if os.path.exists("expenses.csv"):
-        with open("expenses.csv", "r") as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                expenses.append(row)
-    return expenses
+    if os.path.exists(EXPENSES_FILE):
+        with open(EXPENSES_FILE, "r") as file:
+            return [Expense(**expense_data) for expense_data in json.load(file)]
+    else:
+        return []
 
-# Function to save expenses to CSV
 def save_expenses(expenses):
-    with open("expenses.csv", "w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=CSV_HEADERS)
-        writer.writeheader()
-        writer.writerows(expenses)
+    with open(EXPENSES_FILE, "w") as file:
+        json.dump([expense.__dict__ for expense in expenses], file, indent=4)
 
-# Function to add a new expense
-def add_expense(expenses):
-    while True:
-        try:
-            date_str = input("Enter the expense date (YYYY-MM-DD): ")
-            date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
-            amount = float(input("Enter the expense amount: "))
-            category = input("Enter the expense category: ")
-            description = input("Enter a short description: ")
-            expenses.append({"Date": date, "Amount": amount, "Category": category, "Description": description})
-            save_expenses(expenses)
-            print("Expense added successfully!")
-            break
-        except ValueError:
-            print("Invalid input. Please enter a valid date and amount.")
+def validate_date(date_str):
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
 
-# Function to view expenses
-def view_expenses(expenses):
-    # Implement sorting and filtering options here
-    pass
+def validate_amount(amount_str):
+    try:
+        float(amount_str)
+        return True
+    except ValueError:
+        return False
 
-# Function to view statistics
-def view_statistics(expenses):
-    # Calculate and display statistics like total expenses, average expenses by category, etc.
-    pass
+def display_expenses(expenses):
+    for i, expense in enumerate(expenses, start=1):
+        print(f"{i}. Date: {expense.date}, Amount: ${expense.amount:.2f}, Category: {expense.category}, Description: {expense.description}")
 
-# Function to generate a report
-def generate_report(expenses):
-    # Generate and display a report with expense details
-    pass
-
-# Main function
 def main():
     expenses = load_expenses()
+    categories = DEFAULT_EXPENSE_CATEGORIES
+
     while True:
         print("\nExpense Tracking System Menu:")
-        for key, value in MENU_OPTIONS.items():
-            print(f"{key}. {value}")
+        print("1. Add Expense")
+        print("2. View Expenses")
+        print("3. Generate Report")
+        print("4. Sort Expenses")
+        print("5. Filter Expenses")
+        print("6. Exit")
+
         choice = input("Enter your choice: ")
+
         if choice == "1":
-            add_expense(expenses)
+            date = input("Enter expense date (YYYY-MM-DD): ")
+            if not validate_date(date):
+                print("Invalid date format. Please use YYYY-MM-DD.")
+                continue
+
+            amount = input("Enter expense amount: ")
+            if not validate_amount(amount):
+                print("Invalid amount format. Please enter a valid number.")
+                continue
+
+            print("Expense Categories:")
+            for i, category in enumerate(categories, start=1):
+                print(f"{i}. {category}")
+
+            category_choice = int(input("Select expense category (or enter a new category): ")) - 1
+            if category_choice < 0 or category_choice >= len(categories):
+                new_category = input("Enter a new category: ")
+                categories.append(new_category)
+                category = new_category
+            else:
+                category = categories[category_choice]
+
+            description = input("Enter expense description: ")
+
+            new_expense = Expense(date, float(amount), category, description)
+            expenses.append(new_expense)
+            save_expenses(expenses)
+            print("Expense added successfully!")
+
         elif choice == "2":
-            view_expenses(expenses)
+            display_expenses(expenses)
+
         elif choice == "3":
-            view_statistics(expenses)
+            total_expenses = sum(expense.amount for expense in expenses)
+            print(f"Total Expenses: ${total_expenses:.2f}")
+
+            category_expenses = {}
+            for category in categories:
+                category_expenses[category] = sum(expense.amount for expense in expenses if expense.category == category)
+
+            for category, amount in category_expenses.items():
+                print(f"{category} Expenses: ${amount:.2f}")
+
+            # Visualization using Matplotlib
+            plt.bar(category_expenses.keys(), category_expenses.values())
+            plt.xlabel("Expense Categories")
+            plt.ylabel("Amount ($)")
+            plt.title("Expense Distribution by Category")
+            plt.xticks(rotation=45)
+            plt.show()
+
         elif choice == "4":
-            generate_report(expenses)
+            sort_option = input("Sort by (date/amount/category): ").lower()
+            if sort_option not in ["date", "amount", "category"]:
+                print("Invalid sort option.")
+                continue
+
+            expenses.sort(key=lambda x: getattr(x, sort_option))
+            display_expenses(expenses)
+
         elif choice == "5":
-            print("Exiting the program. Goodbye!")
+            filter_option = input("Filter by (date/category): ").lower()
+            if filter_option not in ["date", "category"]:
+                print("Invalid filter option.")
+                continue
+
+            filter_value = input(f"Enter {filter_option} to filter by: ")
+
+            filtered_expenses = [expense for expense in expenses if getattr(expense, filter_option) == filter_value]
+            display_expenses(filtered_expenses)
+
+        elif choice == "6":
+            print("Exiting Expense Tracking System. Goodbye!")
             break
+
         else:
-            print("Invalid choice. Please try again.")
+            print("Invalid choice. Please select a valid option.")
 
 if __name__ == "__main__":
     main()
